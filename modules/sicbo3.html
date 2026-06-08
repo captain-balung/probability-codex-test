@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>真實骰子遊戲體驗</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="sicbo3">
+  <div id="site-nav"></div>
+  <main>
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">Module F</p>
+        <h1>真實骰寶遊戲體驗</h1>
+        <p class="hero-copy">設定本金、選擇籌碼面額，在多個注區同時下注，擲骰後依標準賠率表一起結算。</p>
+      </div>
+    </header>
+
+    <section class="layout">
+      <aside class="panel controls">
+        <label>起始本金 <input id="startBankroll" type="number" min="1" value="1000"></label>
+        <div class="button-row">
+          <button id="newGame">開新局</button>
+          <button id="clearBets" class="secondary">清除下注</button>
+        </div>
+        <label>籌碼面額
+          <select id="chip">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+          </select>
+        </label>
+        <div class="stats-grid">
+          <div class="stat"><span>本金</span><strong id="bankroll">1000</strong></div>
+          <div class="stat"><span>本局下注</span><strong id="wagered">0</strong></div>
+          <div class="stat"><span>上局損益</span><strong id="lastProfit">0</strong></div>
+        </div>
+        <div class="dice-line">
+          <div class="die" id="die0">1</div>
+          <div class="die" id="die1">2</div>
+          <div class="die" id="die2">3</div>
+        </div>
+        <button id="roll">擲骰結算</button>
+        <div id="message" class="small-note">點擊任一注區下注；再次點擊會繼續加碼。</div>
+        <div id="log" class="log"></div>
+      </aside>
+
+      <section class="table-board" id="board"></section>
+    </section>
+  </main>
+
+  <script src="../js/main.js"></script>
+  <script>
+    const board = document.getElementById("board");
+    const bankrollEl = document.getElementById("bankroll");
+    const wageredEl = document.getElementById("wagered");
+    const lastProfitEl = document.getElementById("lastProfit");
+    const messageEl = document.getElementById("message");
+    const logEl = document.getElementById("log");
+    const dieEls = [0, 1, 2].map(i => document.getElementById(`die${i}`));
+    const bets = new Map();
+    let bankroll = 1000;
+    let rolling = false;
+
+    const sumPayout = {
+      4: 60, 17: 60,
+      5: 30, 16: 30,
+      6: 18, 15: 18,
+      7: 12, 14: 12,
+      8: 8, 13: 8,
+      9: 6, 10: 6, 11: 6, 12: 6
+    };
+
+    const sections = [
+      {
+        title: "大小",
+        items: [
+          { id: "big", label: "大", note: "11-17 豹子輸", type: "bigSmall", target: "big", payout: 1 },
+          { id: "small", label: "小", note: "4-10 豹子輸", type: "bigSmall", target: "small", payout: 1 }
+        ]
+      },
+      {
+        title: "單點 1-6",
+        items: [1, 2, 3, 4, 5, 6].map(n => ({ id: `single-${n}`, label: `單點 ${n}`, note: "1/2/3 顆賠 1/2/3", type: "single", value: n }))
+      },
+      {
+        title: "指定對子",
+        items: [1, 2, 3, 4, 5, 6].map(n => ({ id: `pair-${n}`, label: `${n}${n}`, note: "10:1", type: "pair", value: n, payout: 10 }))
+      },
+      {
+        title: "豹子",
+        items: [
+          { id: "any-triple", label: "任意豹子", note: "30:1", type: "anyTriple", payout: 30 },
+          ...[1, 2, 3, 4, 5, 6].map(n => ({ id: `triple-${n}`, label: `${n}${n}${n}`, note: "180:1", type: "specificTriple", value: n, payout: 180 }))
+        ]
+      },
+      {
+        title: "兩點組合 Domino",
+        items: Array.from({ length: 6 }, (_, a) => a + 1).flatMap(a =>
+          Array.from({ length: 6 - a }, (_, i) => a + i + 1).map(b => ({
+            id: `domino-${a}-${b}`, label: `${a}+${b}`, note: "5:1", type: "domino", values: [a, b], payout: 5
+          }))
+        )
+      },
+      {
+        title: "總和 4-17",
+        items: Array.from({ length: 14 }, (_, i) => i + 4).map(sum => ({
+          id: `sum-${sum}`, label: `總和 ${sum}`, note: `${sumPayout[sum]}:1`, type: "sum", value: sum, payout: sumPayout[sum]
+        }))
+      }
+    ];
+
+    const betIndex = new Map(sections.flatMap(section => section.items.map(item => [item.id, item])));
+
+    function renderBoard() {
+      board.innerHTML = sections.map(section => `
+        <section class="bet-section">
+          <h2>${section.title}</h2>
+          <div class="bet-grid">
+            ${section.items.map(item => `
+              <button class="bet-cell" data-bet-id="${item.id}">
+                <strong>${item.label}</strong>
+                <small>${item.note}</small>
+                <small class="stake">${bets.get(item.id) ? `下注 ${bets.get(item.id)}` : "未下注"}</small>
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      `).join("");
+      updateBetClasses();
+    }
+
+    function updateBetClasses() {
+      document.querySelectorAll(".bet-cell").forEach(cell => {
+        const stake = bets.get(cell.dataset.betId) || 0;
+        cell.classList.toggle("active", stake > 0);
+        const stakeEl = cell.querySelector(".stake");
+        if (stakeEl) stakeEl.textContent = stake > 0 ? `下注 ${stake}` : "未下注";
+      });
+      bankrollEl.textContent = bankroll;
+      wageredEl.textContent = [...bets.values()].reduce((a, b) => a + b, 0);
+      document.getElementById("roll").disabled = rolling || bets.size === 0 || bankroll <= 0;
+    }
+
+    function placeBet(id) {
+      if (rolling || bankroll <= 0) return;
+      const chip = Number(document.getElementById("chip").value);
+      if (bankroll < chip) {
+        messageEl.textContent = "本金不足，請換小面額或開新局。";
+        return;
+      }
+      bankroll -= chip;
+      bets.set(id, (bets.get(id) || 0) + chip);
+      updateBetClasses();
+    }
+
+    function countOf(dice, value) {
+      return dice.filter(d => d === value).length;
+    }
+
+    function settleItem(item, dice, stake) {
+      const sum = dice.reduce((a, b) => a + b, 0);
+      const triple = ProbCasino.isTriple(dice);
+      if (item.type === "bigSmall") return ProbCasino.sicboOutcome(dice, item.target) ? stake * (item.payout + 1) : 0;
+      if (item.type === "single") {
+        const hits = countOf(dice, item.value);
+        return hits > 0 ? stake * (hits + 1) : 0;
+      }
+      if (item.type === "pair") return countOf(dice, item.value) >= 2 ? stake * (item.payout + 1) : 0;
+      if (item.type === "anyTriple") return triple ? stake * (item.payout + 1) : 0;
+      if (item.type === "specificTriple") return dice.every(d => d === item.value) ? stake * (item.payout + 1) : 0;
+      if (item.type === "domino") return item.values.every(v => dice.includes(v)) ? stake * (item.payout + 1) : 0;
+      if (item.type === "sum") return sum === item.value ? stake * (item.payout + 1) : 0;
+      return 0;
+    }
+
+    function appendLog(text) {
+      const row = document.createElement("div");
+      row.textContent = text;
+      logEl.prepend(row);
+    }
+
+    function animateRoll(finalDice) {
+      rolling = true;
+      let ticks = 0;
+      const timer = setInterval(() => {
+        const dice = ticks >= 12 ? finalDice : ProbCasino.rollDice();
+        dice.forEach((value, i) => dieEls[i].textContent = value);
+        ticks += 1;
+        if (ticks > 12) {
+          clearInterval(timer);
+          finishRoll(finalDice);
+        }
+      }, 90);
+    }
+
+    function finishRoll(dice) {
+      const totalStake = [...bets.values()].reduce((a, b) => a + b, 0);
+      let returned = 0;
+      const winners = [];
+      for (const [id, stake] of bets.entries()) {
+        const item = betIndex.get(id);
+        const amount = settleItem(item, dice, stake);
+        returned += amount;
+        if (amount > 0) winners.push(`${item.label}+${amount - stake}`);
+      }
+      bankroll += returned;
+      const profit = returned - totalStake;
+      lastProfitEl.textContent = profit;
+      lastProfitEl.className = profit >= 0 ? "positive" : "negative";
+      messageEl.textContent = winners.length ? `中獎：${winners.join("、")}` : "本局未中獎。";
+      appendLog(`骰出 ${dice.join("-")}，本局${profit >= 0 ? "贏" : "輸"} ${Math.abs(profit)}。`);
+      bets.clear();
+      rolling = false;
+      updateBetClasses();
+      if (bankroll <= 0) messageEl.textContent = "本金歸零，遊戲結束。";
+    }
+
+    board.addEventListener("click", event => {
+      const cell = event.target.closest(".bet-cell");
+      if (cell) placeBet(cell.dataset.betId);
+    });
+
+    document.getElementById("clearBets").addEventListener("click", () => {
+      if (rolling) return;
+      const refund = [...bets.values()].reduce((a, b) => a + b, 0);
+      bankroll += refund;
+      bets.clear();
+      messageEl.textContent = "已清除本局下注。";
+      updateBetClasses();
+    });
+
+    document.getElementById("newGame").addEventListener("click", () => {
+      bankroll = Math.max(1, Number(document.getElementById("startBankroll").value));
+      bets.clear();
+      lastProfitEl.textContent = "0";
+      lastProfitEl.className = "";
+      logEl.innerHTML = "";
+      messageEl.textContent = "新局開始，請選擇籌碼並點擊注區。";
+      updateBetClasses();
+    });
+
+    document.getElementById("roll").addEventListener("click", () => {
+      if (rolling || bets.size === 0) return;
+      animateRoll(ProbCasino.rollDice());
+      updateBetClasses();
+    });
+
+    renderBoard();
+    updateBetClasses();
+  </script>
+</body>
+</html>

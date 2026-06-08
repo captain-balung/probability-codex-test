@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>硬幣二項分配分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="coin">
+  <div id="site-nav"></div>
+  <main>
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">Module B</p>
+        <h1>硬幣二項分配分析</h1>
+        <p class="hero-copy">小數量直接列出每種 H/T 組合，大數量改用組合公式，即時比較各正面數機率。</p>
+      </div>
+    </header>
+
+    <section class="layout">
+      <aside class="panel controls">
+        <label>硬幣數量 n
+          <input id="coinCount" type="number" min="1" max="100" value="6">
+        </label>
+        <input id="coinRange" type="range" min="1" max="100" value="6">
+        <p id="modeHelp" class="small-note"></p>
+      </aside>
+      <section class="panel">
+        <div class="stats-grid">
+          <div class="stat"><span>總結果數</span><strong id="totalOutcomes">-</strong></div>
+          <div class="stat"><span>計算模式</span><strong id="modeLabel">-</strong></div>
+        </div>
+        <div id="resultList" class="result-list"></div>
+      </section>
+    </section>
+  </main>
+  <script src="../js/main.js"></script>
+  <script>
+    const countInput = document.getElementById("coinCount");
+    const rangeInput = document.getElementById("coinRange");
+    const resultList = document.getElementById("resultList");
+    const totalOutcomes = document.getElementById("totalOutcomes");
+    const modeLabel = document.getElementById("modeLabel");
+    const modeHelp = document.getElementById("modeHelp");
+
+    function combinationRow(n) {
+      const row = [1n];
+      for (let k = 1; k <= n; k += 1) row[k] = row[k - 1] * BigInt(n - k + 1) / BigInt(k);
+      return row;
+    }
+
+    function enumerate(n) {
+      const buckets = Array.from({ length: n + 1 }, () => []);
+      const total = 2 ** n;
+      for (let mask = 0; mask < total; mask += 1) {
+        let heads = 0;
+        let text = "";
+        for (let i = n - 1; i >= 0; i -= 1) {
+          const isHead = (mask & (1 << i)) !== 0;
+          if (isHead) heads += 1;
+          text += isHead ? "H" : "T";
+        }
+        buckets[heads].push(text);
+      }
+      return buckets;
+    }
+
+    function render() {
+      const n = ProbCasino.clamp(countInput.value, 1, 100);
+      countInput.value = n;
+      rangeInput.value = n;
+      const total = 2n ** BigInt(n);
+      const values = combinationRow(n);
+      const buckets = n <= 10 ? enumerate(n) : null;
+
+      totalOutcomes.textContent = ProbCasino.formatBigInt(total);
+      modeLabel.textContent = n <= 10 ? "實際窮舉" : "公式計算";
+      modeHelp.textContent = n <= 10
+        ? "目前列出所有 H/T 序列，學生可以直接看到每類結果怎麼形成。"
+        : "n 超過 10 後改用 C(n,k) / 2^n，避免產生過多序列。";
+
+      resultList.innerHTML = values.map((ways, k) => {
+        const probability = Number(ways) / Number(total);
+        const combos = buckets ? `<div class="combos">${buckets[k].join("、")}</div>` : "";
+        return `
+          <article class="result-row">
+            <div class="result-top">
+              <span>正面 ${k} 次</span>
+              <span>${(probability * 100).toFixed(4)}%</span>
+            </div>
+            <div class="progress"><span style="width:${probability * 100}%"></span></div>
+            <div class="combos">組合數：${ProbCasino.formatBigInt(ways)} / ${ProbCasino.formatBigInt(total)}</div>
+            ${combos}
+          </article>
+        `;
+      }).join("");
+    }
+
+    countInput.addEventListener("input", render);
+    rangeInput.addEventListener("input", () => {
+      countInput.value = rangeInput.value;
+      render();
+    });
+    render();
+  </script>
+</body>
+</html>

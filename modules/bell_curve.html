@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>鐘形曲線視覺化</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="bell">
+  <div id="site-nav"></div>
+  <main>
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">Module A</p>
+        <h1>鐘形曲線視覺化</h1>
+        <p class="hero-copy">輸入硬幣數量，精準計算每個正面數的組合數，觀察二項分布如何長成鐘形。</p>
+      </div>
+    </header>
+
+    <section class="layout">
+      <aside class="panel controls">
+        <label>硬幣數量 n
+          <input id="coinCount" type="number" min="1" max="100" value="20">
+        </label>
+        <input id="coinRange" type="range" min="1" max="100" value="20">
+        <p class="small-note">n 大於 20 時會自動隱藏細部標籤，並使用對數縮放保留兩端長條的可見度。</p>
+      </aside>
+      <section class="panel">
+        <div class="stats-grid">
+          <div class="stat"><span>總排列數</span><strong id="totalWays">-</strong></div>
+          <div class="stat"><span>最大組合數</span><strong id="maxWays">-</strong></div>
+          <div class="stat"><span>顯示模式</span><strong id="modeLabel">-</strong></div>
+        </div>
+        <div class="chart-wrap">
+          <div id="chart" class="bar-chart"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="../js/main.js"></script>
+  <script>
+    const countInput = document.getElementById("coinCount");
+    const rangeInput = document.getElementById("coinRange");
+    const chart = document.getElementById("chart");
+    const totalWays = document.getElementById("totalWays");
+    const maxWays = document.getElementById("maxWays");
+    const modeLabel = document.getElementById("modeLabel");
+
+    function combinationRow(n) {
+      const row = [1n];
+      for (let k = 1; k <= n; k += 1) {
+        row[k] = row[k - 1] * BigInt(n - k + 1) / BigInt(k);
+      }
+      return row;
+    }
+
+    function render() {
+      const n = ProbCasino.clamp(countInput.value, 1, 100);
+      countInput.value = n;
+      rangeInput.value = n;
+      const values = combinationRow(n);
+      const max = values.reduce((a, b) => a > b ? a : b, 0n);
+      const maxLog = Math.log10(Number(max.toString().slice(0, 15))) + Math.max(0, max.toString().length - 15);
+
+      totalWays.textContent = ProbCasino.formatBigInt(2n ** BigInt(n));
+      maxWays.textContent = ProbCasino.formatBigInt(max);
+      modeLabel.textContent = n > 20 ? "dense-mode" : "完整標籤";
+      chart.classList.toggle("dense-mode", n > 20);
+
+      chart.innerHTML = values.map((value, k) => {
+        const text = value.toString();
+        const valueLog = Math.log10(Number(text.slice(0, 15))) + Math.max(0, text.length - 15);
+        const height = Math.max(3, (valueLog / maxLog) * 100);
+        return `
+          <div class="bar" title="k=${k}, C(${n},${k})=${text}">
+            <div class="bar-value">${ProbCasino.formatBigInt(value)}</div>
+            <div class="bar-fill" style="height:${height}%"></div>
+            <div class="bar-label">${k}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    countInput.addEventListener("input", render);
+    rangeInput.addEventListener("input", () => {
+      countInput.value = rangeInput.value;
+      render();
+    });
+    render();
+  </script>
+</body>
+</html>

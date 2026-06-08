@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>固定平注模擬</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="sicbo">
+  <div id="site-nav"></div>
+  <main>
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">Module D</p>
+        <h1>賭場連續下注模擬 A</h1>
+        <p class="hero-copy">固定金額連續下注大 / 小，觀察看似接近公平的 1:1 玩法如何累積莊家優勢。</p>
+      </div>
+    </header>
+    <section class="layout">
+      <aside class="panel controls">
+        <label>初始本金 <input id="bankroll" type="number" min="1" value="1000"></label>
+        <label>每把固定下注額 <input id="bet" type="number" min="1" value="50"></label>
+        <label>模擬次數 <input id="rounds" type="number" min="1" max="1000" value="300"></label>
+        <label>下注標的
+          <select id="target"><option value="big">大</option><option value="small">小</option></select>
+        </label>
+        <button id="run">開始模擬</button>
+      </aside>
+      <section class="panel">
+        <div class="stats-grid">
+          <div class="stat"><span>總局數</span><strong id="played">0</strong></div>
+          <div class="stat"><span>豹子出現</span><strong id="triples">0</strong></div>
+          <div class="stat"><span>總損益</span><strong id="profit">0</strong></div>
+          <div class="stat"><span>結束本金</span><strong id="ending">0</strong></div>
+        </div>
+        <div id="chart" class="chart-wrap d3-chart"></div>
+      </section>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="../js/main.js"></script>
+  <script>
+    const ids = id => document.getElementById(id);
+    const fields = ["bankroll", "bet", "rounds", "target"].reduce((acc, id) => ({ ...acc, [id]: ids(id) }), {});
+    const output = ["played", "triples", "profit", "ending"].reduce((acc, id) => ({ ...acc, [id]: ids(id) }), {});
+    const chartEl = ids("chart");
+
+    function simulate() {
+      const start = Math.max(1, Number(fields.bankroll.value));
+      const fixedBet = Math.max(1, Number(fields.bet.value));
+      const maxRounds = ProbCasino.clamp(fields.rounds.value, 1, 1000);
+      const target = fields.target.value;
+      let bankroll = start;
+      let triples = 0;
+      const data = [{ round: 0, profit: 0 }];
+
+      for (let round = 1; round <= maxRounds && bankroll > 0; round += 1) {
+        const wager = Math.min(fixedBet, bankroll);
+        const dice = ProbCasino.rollDice();
+        if (ProbCasino.isTriple(dice)) triples += 1;
+        bankroll += ProbCasino.sicboOutcome(dice, target) ? wager : -wager;
+        data.push({ round, profit: bankroll - start });
+      }
+      draw(data);
+      output.played.textContent = data.length - 1;
+      output.triples.textContent = triples;
+      output.profit.textContent = data.at(-1).profit;
+      output.profit.className = data.at(-1).profit >= 0 ? "positive" : "negative";
+      output.ending.textContent = bankroll;
+    }
+
+    function draw(data) {
+      chartEl.innerHTML = "";
+      const width = chartEl.clientWidth || 720;
+      const height = 360;
+      const margin = { top: 18, right: 20, bottom: 34, left: 54 };
+      const svg = d3.select(chartEl).append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+      const x = d3.scaleLinear().domain(d3.extent(data, d => d.round)).range([margin.left, width - margin.right]);
+      const yExtent = d3.extent(data, d => d.profit);
+      const y = d3.scaleLinear().domain([Math.min(yExtent[0], 0), Math.max(yExtent[1], 0)]).nice().range([height - margin.bottom, margin.top]);
+      const line = d3.line().x(d => x(d.round)).y(d => y(d.profit));
+      svg.append("g").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x).ticks(6));
+      svg.append("g").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y).ticks(6));
+      svg.append("line").attr("x1", margin.left).attr("x2", width - margin.right).attr("y1", y(0)).attr("y2", y(0)).attr("stroke", "#f5c451").attr("stroke-dasharray", "4 5");
+      svg.append("path").datum(data).attr("fill", "none").attr("stroke", data.at(-1).profit >= 0 ? "#34c77b" : "#d73745").attr("stroke-width", 3).attr("d", line);
+    }
+
+    ids("run").addEventListener("click", simulate);
+    simulate();
+  </script>
+</body>
+</html>
