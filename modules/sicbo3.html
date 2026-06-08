@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>真實骰子遊戲體驗</title>
+  <title>真實骰寶遊戲體驗</title>
   <link rel="stylesheet" href="../css/style.css">
 </head>
 <body data-page="sicbo3">
@@ -17,7 +17,7 @@
       </div>
     </header>
 
-    <section class="layout">
+    <section class="layout sicbo-play-layout">
       <aside class="panel controls">
         <label>起始本金 <input id="startBankroll" type="number" min="1" value="1000"></label>
         <div class="button-row">
@@ -48,7 +48,7 @@
         <div id="log" class="log"></div>
       </aside>
 
-      <section class="table-board" id="board"></section>
+      <section class="compact-sicbo-board" id="board" aria-label="骰寶下注桌"></section>
     </section>
   </main>
 
@@ -65,6 +65,7 @@
     let bankroll = 1000;
     let rolling = false;
 
+    const diceGlyphs = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
     const sumPayout = {
       4: 60, 17: 60,
       5: 30, 16: 30,
@@ -74,71 +75,113 @@
       9: 6, 10: 6, 11: 6, 12: 6
     };
 
-    const sections = [
-      {
-        title: "大小",
-        items: [
-          { id: "big", label: "大", note: "11-17 豹子輸", type: "bigSmall", target: "big", payout: 1 },
-          { id: "small", label: "小", note: "4-10 豹子輸", type: "bigSmall", target: "small", payout: 1 }
-        ]
-      },
-      {
-        title: "單點 1-6",
-        items: [1, 2, 3, 4, 5, 6].map(n => ({ id: `single-${n}`, label: `單點 ${n}`, note: "1/2/3 顆賠 1/2/3", type: "single", value: n }))
-      },
-      {
-        title: "指定對子",
-        items: [1, 2, 3, 4, 5, 6].map(n => ({ id: `pair-${n}`, label: `${n}${n}`, note: "10:1", type: "pair", value: n, payout: 10 }))
-      },
-      {
-        title: "豹子",
-        items: [
-          { id: "any-triple", label: "任意豹子", note: "30:1", type: "anyTriple", payout: 30 },
-          ...[1, 2, 3, 4, 5, 6].map(n => ({ id: `triple-${n}`, label: `${n}${n}${n}`, note: "180:1", type: "specificTriple", value: n, payout: 180 }))
-        ]
-      },
-      {
-        title: "兩點組合 Domino",
-        items: Array.from({ length: 6 }, (_, a) => a + 1).flatMap(a =>
-          Array.from({ length: 6 - a }, (_, i) => a + i + 1).map(b => ({
-            id: `domino-${a}-${b}`, label: `${a}+${b}`, note: "5:1", type: "domino", values: [a, b], payout: 5
-          }))
-        )
-      },
-      {
-        title: "總和 4-17",
-        items: Array.from({ length: 14 }, (_, i) => i + 4).map(sum => ({
-          id: `sum-${sum}`, label: `總和 ${sum}`, note: `${sumPayout[sum]}:1`, type: "sum", value: sum, payout: sumPayout[sum]
+    const betItems = [
+      { id: "small", label: "SMALL", zh: "小", note: "4-10", type: "bigSmall", target: "small", payout: 1, group: "bigSmall" },
+      { id: "big", label: "BIG", zh: "大", note: "11-17", type: "bigSmall", target: "big", payout: 1, group: "bigSmall" },
+      ...Array.from({ length: 14 }, (_, i) => {
+        const sum = i + 4;
+        return { id: `sum-${sum}`, label: String(sum), note: `1 wins ${sumPayout[sum]}`, type: "sum", value: sum, payout: sumPayout[sum], group: "sum" };
+      }),
+      ...[1, 2, 3, 4, 5, 6].map(n => ({ id: `single-${n}`, label: ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"][n - 1], note: diceGlyphs[n], type: "single", value: n, group: "single" })),
+      ...[1, 2, 3, 4, 5, 6].map(n => ({ id: `pair-${n}`, label: `${n}${n}`, note: "10:1", type: "pair", value: n, payout: 10, group: "pair" })),
+      { id: "any-triple", label: "ANY TRIPLE", note: "30:1", type: "anyTriple", payout: 30, group: "triple" },
+      ...[1, 2, 3, 4, 5, 6].map(n => ({ id: `triple-${n}`, label: `${n}${n}${n}`, note: "180:1", type: "specificTriple", value: n, payout: 180, group: "triple" })),
+      ...Array.from({ length: 6 }, (_, a) => a + 1).flatMap(a =>
+        Array.from({ length: 6 - a }, (_, i) => a + i + 1).map(b => ({
+          id: `domino-${a}-${b}`, label: `${a} and ${b}`, note: "1 wins 5", type: "domino", values: [a, b], payout: 5, group: "domino"
         }))
-      }
+      )
     ];
 
-    const betIndex = new Map(sections.flatMap(section => section.items.map(item => [item.id, item])));
+    const betIndex = new Map(betItems.map(item => [item.id, item]));
+
+    function diceFace(value) {
+      return `<span class="dice-face" aria-hidden="true">${diceGlyphs[value]}</span>`;
+    }
+
+    function dicePair(values) {
+      return `<span class="dice-pair">${values.map(diceFace).join("")}</span>`;
+    }
+
+    function stakeText(id) {
+      return bets.get(id) ? `下注 ${bets.get(id)}` : "";
+    }
+
+    function betButton(item, extraClass = "", content = "") {
+      return `
+        <button class="table-bet ${extraClass}" data-bet-id="${item.id}" type="button">
+          ${content || `<strong>${item.label}</strong><small>${item.note}</small>`}
+          <span class="stake">${stakeText(item.id)}</span>
+        </button>
+      `;
+    }
 
     function renderBoard() {
-      board.innerHTML = sections.map(section => `
-        <section class="bet-section">
-          <h2>${section.title}</h2>
-          <div class="bet-grid">
-            ${section.items.map(item => `
-              <button class="bet-cell" data-bet-id="${item.id}">
-                <strong>${item.label}</strong>
-                <small>${item.note}</small>
-                <small class="stake">${bets.get(item.id) ? `下注 ${bets.get(item.id)}` : "未下注"}</small>
-              </button>
-            `).join("")}
+      const small = betIndex.get("small");
+      const big = betIndex.get("big");
+      const pairs = [1, 2, 3, 4, 5, 6].map(n => betIndex.get(`pair-${n}`));
+      const triples = [1, 2, 3, 4, 5, 6].map(n => betIndex.get(`triple-${n}`));
+      const sums = Array.from({ length: 14 }, (_, i) => betIndex.get(`sum-${i + 4}`));
+      const dominoes = Array.from({ length: 6 }, (_, a) => a + 1).flatMap(a =>
+        Array.from({ length: 6 - a }, (_, i) => betIndex.get(`domino-${a}-${a + i + 1}`))
+      );
+      const singles = [1, 2, 3, 4, 5, 6].map(n => betIndex.get(`single-${n}`));
+      const anyTriple = betIndex.get("any-triple");
+
+      board.innerHTML = `
+        <div class="compact-table-inner">
+          <div class="compact-top-row">
+            ${betButton(small, "big-small small-zone", `<strong>SMALL</strong><em>小 4-10</em><small>1 wins 1<br>Lose if any triple appears</small>`)}
+            <div class="special-zone">
+              <div class="zone-caption">Each double 1 wins 10</div>
+              <div class="compact-grid pairs-grid">
+                ${pairs.map(item => betButton(item, "dice-bet", `${dicePair([item.value, item.value])}<small>${item.note}</small>`)).join("")}
+              </div>
+            </div>
+            <div class="special-zone any-triple-zone">
+              <div class="zone-caption">Any triple 1 wins 30</div>
+              ${betButton(anyTriple, "dice-bet any-triple-bet", `<strong>ANY</strong>${dicePair([1, 1, 1])}<small>30:1</small>`)}
+            </div>
+            <div class="special-zone">
+              <div class="zone-caption">Each triple 1 wins 180</div>
+              <div class="compact-grid triples-grid">
+                ${triples.map(item => betButton(item, "dice-bet", `${dicePair([item.value, item.value, item.value])}<small>${item.note}</small>`)).join("")}
+              </div>
+            </div>
+            ${betButton(big, "big-small big-zone", `<strong>BIG</strong><em>大 11-17</em><small>1 wins 1<br>Lose if any triple appears</small>`)}
           </div>
-        </section>
-      `).join("");
+
+          <div class="sum-row">
+            ${sums.map(item => betButton(item, "sum-bet", `<strong>${item.label}</strong><small>${item.note}</small>`)).join("")}
+          </div>
+
+          <div class="domino-row">
+            <div class="row-ribbon">2 dice<br>1 wins 5</div>
+            <div class="compact-grid domino-grid">
+              ${dominoes.map(item => betButton(item, "domino-bet", `${dicePair(item.values)}<small>${item.label}</small>`)).join("")}
+            </div>
+          </div>
+
+          <div class="single-row">
+            ${singles.map(item => betButton(item, "single-bet", `<strong>${item.label}</strong>${diceFace(item.value)}`)).join("")}
+          </div>
+
+          <div class="payout-row">
+            <span>1:1 on one die</span>
+            <span>2:1 on two dice</span>
+            <span>3:1 on three dice</span>
+          </div>
+        </div>
+      `;
       updateBetClasses();
     }
 
     function updateBetClasses() {
-      document.querySelectorAll(".bet-cell").forEach(cell => {
+      document.querySelectorAll(".table-bet").forEach(cell => {
         const stake = bets.get(cell.dataset.betId) || 0;
         cell.classList.toggle("active", stake > 0);
         const stakeEl = cell.querySelector(".stake");
-        if (stakeEl) stakeEl.textContent = stake > 0 ? `下注 ${stake}` : "未下注";
+        if (stakeEl) stakeEl.textContent = stake > 0 ? `下注 ${stake}` : "";
       });
       bankrollEl.textContent = bankroll;
       wageredEl.textContent = [...bets.values()].reduce((a, b) => a + b, 0);
@@ -205,7 +248,7 @@
         const item = betIndex.get(id);
         const amount = settleItem(item, dice, stake);
         returned += amount;
-        if (amount > 0) winners.push(`${item.label}+${amount - stake}`);
+        if (amount > 0) winners.push(`${item.zh || item.label}+${amount - stake}`);
       }
       bankroll += returned;
       const profit = returned - totalStake;
@@ -220,7 +263,7 @@
     }
 
     board.addEventListener("click", event => {
-      const cell = event.target.closest(".bet-cell");
+      const cell = event.target.closest(".table-bet");
       if (cell) placeBet(cell.dataset.betId);
     });
 

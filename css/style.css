@@ -225,6 +225,31 @@ h1 {
   min-width: 0;
 }
 
+.sicbo-play-layout {
+  grid-template-columns: 1fr;
+}
+
+.sicbo-play-layout > .controls {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  align-items: end;
+}
+
+.sicbo-play-layout > .controls .button-row,
+.sicbo-play-layout > .controls .dice-line,
+.sicbo-play-layout > .controls #message,
+.sicbo-play-layout > .controls .log {
+  grid-column: auto;
+}
+
+.sicbo-play-layout > .controls .stats-grid {
+  grid-column: span 2;
+  margin-bottom: 0;
+}
+
+.sicbo-play-layout > .controls #roll {
+  width: 100%;
+}
+
 .panel {
   padding: 18px;
   min-width: 0;
@@ -433,6 +458,258 @@ button.secondary {
   gap: 14px;
 }
 
+.compact-sicbo-board {
+  min-width: 0;
+  padding: 14px;
+  overflow-x: auto;
+  border: 2px solid rgba(245, 196, 81, 0.55);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.08), transparent 28rem),
+    linear-gradient(180deg, #239746, #0a7435 52%, #055427);
+  box-shadow: var(--shadow), inset 0 0 0 5px rgba(0, 0, 0, 0.18);
+}
+
+.compact-table-inner {
+  display: grid;
+  gap: 10px;
+  min-width: 980px;
+}
+
+.compact-top-row {
+  display: grid;
+  grid-template-columns: 1.25fr 1.48fr 0.78fr 1.48fr 1.25fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.compact-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.pairs-grid,
+.triples-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.special-zone {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 6px;
+}
+
+.zone-caption,
+.payout-row span,
+.row-ribbon {
+  border: 4px solid #161616;
+  border-radius: 7px;
+  background: #fbfbf7;
+  color: #222;
+  font-weight: 950;
+  text-align: center;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.36);
+}
+
+.zone-caption {
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  line-height: 1.15;
+}
+
+.table-bet {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 7px;
+  border: 4px solid #161616;
+  border-radius: 8px;
+  background: #fbfbf7;
+  color: #242424;
+  text-align: center;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.42);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.table-bet:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.table-bet.active {
+  border-color: #ffe17a;
+  box-shadow: 0 0 0 3px rgba(255, 225, 122, 0.45), 0 4px 0 rgba(0, 0, 0, 0.42);
+}
+
+.table-bet strong {
+  color: #e3372c;
+  font-size: 1.05rem;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.table-bet small {
+  display: block;
+  color: #222;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.12;
+}
+
+.table-bet .stake {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.74);
+  color: #fff8df;
+  font-size: 0.64rem;
+  line-height: 1.1;
+}
+
+.table-bet .stake:empty {
+  display: none;
+}
+
+.big-small {
+  min-height: 170px;
+  align-content: center;
+  gap: 12px;
+}
+
+.big-small strong {
+  color: #e3372c;
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  letter-spacing: 0;
+}
+
+.big-small em {
+  color: #222;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.dice-bet {
+  min-height: 70px;
+  padding: 6px 5px 18px;
+}
+
+.any-triple-bet {
+  min-height: 132px;
+}
+
+.dice-face {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 5px;
+  background: #e6382e;
+  color: #fff;
+  font-size: 1.65rem;
+  line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.16);
+}
+
+.dice-pair {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.dice-pair .dice-face {
+  width: 28px;
+  height: 28px;
+  font-size: 1.38rem;
+}
+
+.triples-grid .dice-pair,
+.any-triple-bet .dice-pair {
+  gap: 2px;
+}
+
+.triples-grid .dice-pair .dice-face,
+.any-triple-bet .dice-pair .dice-face {
+  width: 22px;
+  height: 22px;
+  font-size: 1.05rem;
+}
+
+.sum-row {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 6px;
+}
+
+.sum-bet {
+  min-height: 110px;
+}
+
+.sum-bet strong {
+  font-size: 2.2rem;
+}
+
+.domino-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.row-ribbon {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: #242424;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.domino-grid {
+  grid-template-columns: repeat(15, 1fr);
+}
+
+.domino-bet {
+  min-height: 122px;
+  padding-bottom: 18px;
+}
+
+.domino-bet .dice-pair {
+  flex-direction: column;
+}
+
+.single-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.single-bet {
+  grid-template-columns: 1fr auto;
+  min-height: 70px;
+  padding: 10px 12px 18px;
+}
+
+.single-bet strong {
+  color: #242424;
+  font-size: 1.65rem;
+}
+
+.payout-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.payout-row span {
+  padding: 8px;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
 .bet-section {
   padding: 14px;
   background: rgba(6, 61, 49, 0.9);
@@ -499,7 +776,19 @@ button.secondary {
     grid-template-columns: 1fr;
   }
 
+  .sicbo-play-layout > .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .sicbo-play-layout > .controls .stats-grid {
+    grid-column: auto;
+  }
+
   .hero-panel {
     min-height: 220px;
+  }
+
+  .compact-sicbo-board {
+    padding: 10px;
   }
 }
